@@ -3,10 +3,11 @@
 	"warnings": ["no-unused"],
 	"authors": [],
 	"version": "0.1.0",
-	"dependency-search-paths": ["libs"],
+	"dependency-search-paths": ["./libs"],
 	"dependencies": [],
 	"features": ["WAYLAND"],
 	"linked-libraries": ["vulkan"],
+	"linker-search-paths":["./libs"],
 	"script-dir": "./",
 	"targets": {
 		"shaders": {

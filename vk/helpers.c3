@@ -5,18 +5,18 @@ import std::math;
 import std::core::env;
 import std::collections::list;
 
-alias FenceList = List(<vk::Fence>);
-alias SemaphoreList = List(<vk::Semaphore>);
-alias StringList = List(<String>);
-alias ZStringList = List(<ZString>);
-alias DeviceList = List(<PhysicalDevice>);
-alias QueuePropertiesList = List(<QueueFamilyProperties>);
-alias SurfaceFormatList = List(<SurfaceFormatKHR>);
-alias PresentModeList = List(<PresentModeKHR>);
-alias CommandBufferList = List(<CommandBuffer>);
-alias ImageList = List(<vk::Image>);
-alias ImageViewList = List(<vk::ImageView>);
-alias FrameBufferList = List(<vk::Framebuffer>);
+alias FenceList = List{vk::Fence};
+alias SemaphoreList = List{vk::Semaphore};
+alias StringList = List{String};
+alias ZStringList = List{ZString};
+alias DeviceList = List{PhysicalDevice};
+alias QueuePropertiesList = List{QueueFamilyProperties};
+alias SurfaceFormatList = List{SurfaceFormatKHR};
+alias PresentModeList = List{PresentModeKHR};
+alias CommandBufferList = List{CommandBuffer};
+alias ImageList = List{vk::Image};
+alias ImageViewList = List{vk::ImageView};
+alias FrameBufferList = List{vk::Framebuffer};
 
 
 struct DeviceQueue {

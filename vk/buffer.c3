@@ -3,8 +3,8 @@ import std::io;
 import std::collections::list;
 import std::collections::map;
 
-def BlockList = List(<Memory>);
-def AllocationList = List(<Allocation>);
+alias BlockList = List{Memory};
+alias AllocationList = List{Allocation};
 
 enum GpuType : uint
 {
