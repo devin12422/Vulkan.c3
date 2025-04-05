@@ -44,7 +44,8 @@ const String[*] ACTIVE_EXTENSIONS = {
 
 fn void main(String[] args) {
 
-    TypeMap type_values = TypeMap.new_init_with_key_values(
+    TypeMap* type_values = (TypeMap){}.init_with_key_values(
+        allocator::heap(),
         "uint16_t", "uint",
         "int16_t", "short",
         "uint32_t", "uint",
@@ -129,15 +130,15 @@ fn void main(String[] args) {
 
     // Create api contants
     foreach (node: root_node.children) {
-        String name = node.attributes.get("name");
-        String type = node.attributes.get("type");
-        String comment = node.attributes.get("comment");
+        String? name = node.attributes.get("name");
+        String? type = node.attributes.get("type");
+        String? comment = node.attributes.get("comment");
         
         if (try name && name == "API Constants") {
             foreach (child: node.children) {
-                String child_name = child.attributes.get("name");
-                String alias_attr = child.attributes.get("alias");
-                String value = child.attributes.get("value");
+                String? child_name = child.attributes.get("name");
+                String? alias_attr = child.attributes.get("alias");
+                String? value = child.attributes.get("value");
 
                 if (try alias_attr && try child_name) continue;
 
@@ -153,10 +154,10 @@ fn void main(String[] args) {
     }
 
     foreach (usz i, node : types_nodes) {
-        String comment = node.attributes.get("comment");
-        String extends = node.attributes.get("structextends");
-        String name = node.attributes.get("name");
-        String alias_attr = node.attributes.get("alias");
+        String? comment = node.attributes.get("comment");
+        String? extends = node.attributes.get("structextends");
+        String? name = node.attributes.get("name");
+        String? alias_attr = node.attributes.get("alias");
         String category = node.attributes.get("category") ?? node.attributes.get("type")!!;
 
         if (try alias_attr && try name) {
@@ -201,8 +202,8 @@ fn void main(String[] args) {
 
     // Parse commands
     foreach (usz i, node : command_nodes) {
-        String alias_attr = node.attributes.get("alias");
-        String name = node.attributes.get("name");
+        String? alias_attr = node.attributes.get("alias");
+        String? name = node.attributes.get("name");
 
         if (node.children.len() > 0) {
             VkCommand command = (VkCommand){}.from_node(node);
@@ -218,9 +219,9 @@ fn void main(String[] args) {
 
     // Enable correct features before writing C3 code
     foreach (feature : feature_nodes) {
-        String number = feature.attributes.get("number");
-        String extension_name = feature.attributes.get("name");
-        String feature_api = feature.attributes.get("api");
+        String? number = feature.attributes.get("number");
+        String? extension_name = feature.attributes.get("name");
+        String? feature_api = feature.attributes.get("api");
 
         if (@ok(feature_api) && feature_api!! == "vulkansc") continue;
 
@@ -229,12 +230,12 @@ fn void main(String[] args) {
         // Get only up-to required vulkan version
         if (((@ok(number) && number.to_double()!! <= MAX_VERSION) || is_extension)) {
             foreach (require: feature.children) {
-                String depends = require.attributes.get("depends");
+                String? depends = require.attributes.get("depends");
 
                 foreach (entry : require.children) {
-                    String name = entry.attributes.get("name");
-                    String extends = entry.attributes.get("extends");
-                    String value = entry.attributes.get("value");
+                    String? name = entry.attributes.get("name");
+                    String? extends = entry.attributes.get("extends");
+                    String? value = entry.attributes.get("value");
 
                     if (catch err = name) continue;
 
@@ -268,16 +269,16 @@ fn void main(String[] args) {
                         }
                         case "enum": {
                             if (try extends) {
-                                String extnumber = entry.attributes.get("extnumber") ?? number;
-                                String offset = entry.attributes.get("offset");
-                                String bitpos = entry.attributes.get("bitpos");
-                                String dir = entry.attributes.get("dir");
-                                String alias_attr = entry.attributes.get("alias");
+                                String? extnumber = entry.attributes.get("extnumber") ?? number;
+                                String? offset = entry.attributes.get("offset");
+                                String? bitpos = entry.attributes.get("bitpos");
+                                String? dir = entry.attributes.get("dir");
+                                String? alias_attr = entry.attributes.get("alias");
 
                                 // Extends previous enum
                                 VkEnum enum_parent;
                                 VkEnum? o_enum_parent;
-                                foreach (&item : enums) {
+                                foreach (item : enums) {
                                     if (item.name == extends){
                                         enum_parent = item;
                                         o_enum_parent = item;
@@ -286,7 +287,7 @@ fn void main(String[] args) {
                                 };
                                 if (catch o_enum_parent) {
                                     enums.push((VkEnum) { .base.name = extends });
-                                    enum_parent = &enums[enums.len() - 1];
+                                    enum_parent = enums[enums.len() - 1];
                                 };
 
                                 if (try alias_attr) {
@@ -329,14 +330,14 @@ fn void main(String[] args) {
     builders_file.write("module vk;\n")!!;
 
     DynamicArenaAllocator allocator;
-    allocator.init(page_size: 256, allocator: allocator::heap());
+    allocator.init( allocator: allocator::heap(),page_size: 256);
     defer allocator.free();
 
     // Constants
     foreach (value : constants) {
-        String type = type_values[value.value] ?? value.value;
+        String type = type_values.get(value.value) ?? value.value;
 
-        DString text_body = dstring::new_join({"const ", value.name[3..], " = ", type, ";\n"}, "", allocator: &allocator);
+        DString text_body = dstring::join(&allocator,{"const ", value.name[3..], " = ", type, ";\n"}, "");
         defer text_body.free();
         main_file.write(text_body.str_view())!!;
     }
@@ -345,7 +346,7 @@ fn void main(String[] args) {
 
     // Handles
     foreach (entry : handles) {
-        DString text_body = dstring::new_join({"distinct ", entry.name[2..], " = inline void*;\n"}, "", allocator: &allocator);
+        DString text_body = dstring::join(&allocator,{"typedef ", entry.name[2..], " = inline void*;\n"}, "");
         defer text_body.free();
         main_file.write(text_body.str_view())!!;
     }
@@ -356,8 +357,8 @@ fn void main(String[] args) {
     foreach (entry : basetypes) {
         if (entry.type == "") continue;
 
-        String type = type_values[entry.type] ?? entry.type.remove_vk();
-        DString text_body = dstring::new_join({"def ", entry.name[2..], " = ", type, ";\n"}, "");
+        String type = type_values.get(entry.type) ?? entry.type.remove_vk();
+        DString text_body = dstring::join(&allocator,{"alias ", entry.name[2..], " = ", type, ";\n"}, "");
         main_file.write(text_body.str_view())!!;
     }
 
@@ -369,12 +370,12 @@ fn void main(String[] args) {
         if (entry.name == "VkResult" || entry.negative) enum_type = "int";
         if (entry.bitwidth == "64") enum_type = "ulong";
 
-        DString text_body = dstring::new_join({"distinct ", entry.name[2..], " = ", "inline ", enum_type, ";\n"}, "", allocator: &allocator);
+        DString text_body = dstring::join(&allocator,{"typedef ", entry.name[2..], " = ", "inline ", enum_type, ";\n"}, "");
         defer text_body.free();
         // Add values
         foreach (value : entry.values) {
-            value.name.convert_ascii_to_upper();
-            text_body.append(dstring::new_join({"const ", entry.name[2..]," ", value.name[3..]," = ", value.value,";\n"}, "", allocator: &allocator));
+            value.name.convert_to_upper();
+            text_body.append(dstring::join(&allocator,{"const ", entry.name[2..]," ", value.name[3..]," = ", value.value,";\n"}, ""));
         }
         
         text_body.append_chars("\n");
@@ -384,8 +385,8 @@ fn void main(String[] args) {
     // Write C3 errors
     foreach (entry : enums) {
         if (entry.name == "VkResult") {
-            DString text_body = dstring::new_join({"fault VkErrors {\n",}, "");
-            foreach (value : entry.values) if (value.value[0] == '-') text_body.append(dstring::new_join({" ", value.name[3..], ",\n"}, "", allocator: &allocator));
+            DString text_body = dstring::join(&allocator,{"fault VkErrors {\n",}, "");
+            foreach (value : entry.values) if (value.value[0] == '-') text_body.append(dstring::join(&allocator,{" ", value.name[3..], ",\n"}, ""));
             text_body.append("}\n");
 
             main_file.write(text_body.str_view())!!;
@@ -405,45 +406,45 @@ fn void main(String[] args) {
 
         String name = entry.name.remove_vk();
 
-        DString text_body = dstring::new_join({"struct ", name, " {\n"}, "", allocator: &allocator);
+        DString text_body = dstring::join(&allocator,{"struct ", name, " {\n"}, "");
         defer text_body.free();
 
         if (has_struct_type) {
-            creator_functions.append(dstring::new_join({"fn ", name, " ", name.to_lower_case(), "() => ",
+            creator_functions.append(dstring::join(&allocator,{"fn ", name, " ", name.to_lower_case(), "() => ",
             name,
-            " { .sType = ", entry.values[0].defaultValue[3..], ", .pNext = null };\n"}, "", allocator: &allocator));
+            " { .sType = ", entry.values[0].defaultValue[3..], ", .pNext = null };\n"}, ""));
         }
 
         // Add struct values
         foreach (i, value : entry.values) {
-            String type = type_values[value.type] ?? value.type.remove_vk();
+            String type = type_values.get(value.type) ?? value.type.remove_vk();
 
             if (has_struct_type && i > 0) {
                 String value_name = value.value == "*" ? value.name[1..].capitalize() : value.name.capitalize();
                 if (value.len != "" && type != "void") {
 
-                    DString buffer = dstring::new_join({"fn ", name, " ", name, ".set", type == "char" ? value_name[1..] : value_name, "(&self, ", type == "char" ? "ZString" : type, value.size != "" ? value.size : "[]", " ", value.name.to_lower_case(), ") {\n",
-                    "   self.", value.len, "= (uint)", value.name.to_lower_case(), ".len;\n"},  "", allocator: &allocator);
+                    DString buffer = dstring::join(&allocator,{"fn ", name, " ", name, ".set", type == "char" ? value_name[1..] : value_name, "(&self, ", type == "char" ? "ZString" : type, value.size != "" ? value.size : "[]", " ", value.name.to_lower_case(), ") {\n",
+                    "   self.", value.len, "= (uint)", value.name.to_lower_case(), ".len;\n"},  "");
 
                     if (type == "char") {
-                        buffer.append(dstring::new_join({"   self.", value.name, " = (char*)&", value.name.to_lower_case(), "[0];\n", "   return *self;\n}\n"},"", allocator: &allocator));
+                        buffer.append(dstring::join(&allocator,{"   self.", value.name, " = (char*)&", value.name.to_lower_case(), "[0];\n", "   return *self;\n}\n"},""));
                     } else if (value.size != "") {
-                        buffer.append(dstring::new_join({"   self.", value.name, " = ", value.name.to_lower_case(), ";\n", "   return *self;\n}\n"},"", allocator: &allocator));
+                        buffer.append(dstring::join(&allocator,{"   self.", value.name, " = ", value.name.to_lower_case(), ";\n", "   return *self;\n}\n"},""));
                     } else {
-                        buffer.append(dstring::new_join({"   self.", value.name, " = &", value.name.to_lower_case(), "[0];\n", "   return *self;\n}\n"}, "", allocator: &allocator));
+                        buffer.append(dstring::join(&allocator,{"   self.", value.name, " = &", value.name.to_lower_case(), "[0];\n", "   return *self;\n}\n"}, ""));
                     }
                     creator_functions.append(buffer);
                 } else {
-                    creator_functions.append(dstring::new_join({"fn ", name, " ", name, ".set", value_name, "(&self, ", type, value.size != "" ? value.size : value.value, " ", value.name.to_lower_case(), ") {\n",
+                    creator_functions.append(dstring::join(&allocator,{"fn ", name, " ", name, ".set", value_name, "(&self, ", type, value.size != "" ? value.size : value.value, " ", value.name.to_lower_case(), ") {\n",
                     "   self.", value.name, " = ", value.name.to_lower_case(), ";\n", "   return *self;\n}\n"
-                    }, "", allocator: &allocator));
+                    }, ""));
                 }
             }
 
             if (value.size != "") {
-                text_body.append(dstring::new_join({"   ", type, value.size, " ", value.name,";\n"}, "", allocator: &allocator));
+                text_body.append(dstring::join(&allocator,{"   ", type, value.size, " ", value.name,";\n"}, ""));
             } else {
-                text_body.append(dstring::new_join({"   ", type, value.value, " ", value.name,";\n"}, "", allocator: &allocator));
+                text_body.append(dstring::join(&allocator,{"   ", type, value.value, " ", value.name,";\n"}, ""));
             }
         }
         
@@ -457,17 +458,17 @@ fn void main(String[] args) {
     // Unions
     foreach (entry : unions) {
         if (!entry.enabled) continue;
-        DString text_body = dstring::new_join({"union ", entry.name[2..], " { \n"}, "", allocator: &allocator);
+        DString text_body = dstring::join(&allocator,{"union ", entry.name[2..], " { \n"}, "");
         defer text_body.free();
 
         // Add values
         foreach (value : entry.values) {
-            String type = type_values[value.type] ?? value.type.remove_vk();
+            String type = type_values.get(value.type) ?? value.type.remove_vk();
 
             if (value.size != "") {
-                text_body.append(dstring::new_join({"   ", type, value.size, " ", value.name,";\n"}, "", allocator: &allocator));
+                text_body.append(dstring::join(&allocator,{"   ", type, value.size, " ", value.name,";\n"}, ""));
             } else {
-                text_body.append(dstring::new_join({"   ", type, value.value, " ", value.name,";\n"}, "", allocator: &allocator));
+                text_body.append(dstring::join(&allocator,{"   ", type, value.value, " ", value.name,";\n"}, ""));
             }
         }
         
@@ -500,24 +501,24 @@ fn void main(String[] args) {
     foreach (entry : commands) {
         if (entry.enabled == false) continue;
 
-        String return_type = type_values[entry.returnType] ?? entry.returnType.remove_vk();
+        String return_type = type_values.get(entry.returnType) ?? entry.returnType.remove_vk();
         bool no_result = return_type != "Result";
         bool create_command = entry.name.contains("Create");
 
-        String extension_def = dstring::new_join({"PFN_", entry.name}, "", allocator: &allocator).str_view();
+        String extension_def = dstring::join(&allocator,{"PFN_", entry.name}, "").str_view();
 
         if (!entry.extension) {
-            base_commands.append(dstring::new_join({"extern fn ", return_type, " ", no_result ? entry.name[2..].to_lower_case() : entry.name, "("}, "", allocator: &allocator));
+            base_commands.append(dstring::join(&allocator,{"extern fn ", return_type, " ", no_result ? entry.name[2..].to_lower_case() : entry.name, "("}, ""));
         }
 
         if (no_result && entry.extension) {
-            extension_functions.append(dstring::new_join({"fn ", return_type, " ", entry.name.remove_vk().to_lower_case(), " ("}, "", allocator: &allocator));
+            extension_functions.append(dstring::join(&allocator,{"fn ", return_type, " ", entry.name.remove_vk().to_lower_case(), " ("}, ""));
         }
 
         if (entry.extension) {
-            extension_definitions.append(dstring::new_join({"def ", extension_def, " = fn ", return_type, " ("}, "", allocator: &allocator));
-            extension_pointers.append(dstring::new_join({"  ", extension_def, " ", entry.name, ";\n"}, "", allocator: &allocator));
-            extension_bind.append(dstring::new_join({"   extensions.", entry.name, " = (", extension_def, ")getInstanceProcAddr(instance,\"", entry.name, "\");\n"}, "", allocator: &allocator));
+            extension_definitions.append(dstring::join(&allocator,{"alias ", extension_def, " = fn ", return_type, " ("}, ""));
+            extension_pointers.append(dstring::join(&allocator,{"  ", extension_def, " ", entry.name, ";\n"}, ""));
+            extension_bind.append(dstring::join(&allocator,{"   extensions.", entry.name, " = (", extension_def, ")getInstanceProcAddr(instance,\"", entry.name, "\");\n"}, ""));
         }
 
         if (create_command && entry.name != "vkCreateRenderPass2KHR") {
@@ -533,25 +534,25 @@ fn void main(String[] args) {
             command_name = o_command_name ?? "";
             String result_type = entry.values[entry.values.len() - 1].type;
     
-            create_commands.append(dstring::new_join({"fn ", result_type.remove_vk(), "! ", command_name.remove_vk(), ".build(&self, "}, "", allocator: &allocator));
+            create_commands.append(dstring::join(&allocator,{"fn ", result_type.remove_vk(), "! ", command_name.remove_vk(), ".build(&self, "}, ""));
 
             foreach (i, value : entry.values) {
                 if (value.type == command_name || value.type == result_type) continue;
-                String type = type_values[value.type] ?? value.type.remove_vk();
+                String type = type_values.get(value.type) ?? value.type.remove_vk();
                 String default_value = "";
                 if (value.optional) default_value = " = null";
                 if (type == "uint") default_value = " = 1";
                 
-                create_commands.append(dstring::new_join({type, value.value, " ", value.name, default_value, i == entry.values.len() - 2 ? ") {\n" : ", "}, "", allocator: &allocator));
+                create_commands.append(dstring::join(&allocator,{type, value.value, " ", value.name, default_value, i == entry.values.len() - 2 ? ") {\n" : ", "}, ""));
             }
 
-            create_commands.append(dstring::new_join({"   ", result_type.remove_vk(), " response;\n", "   ", entry.name.remove_vk().to_lower_case(), "("}, "", allocator: &allocator));
+            create_commands.append(dstring::join(&allocator,{"   ", result_type.remove_vk(), " response;\n", "   ", entry.name.remove_vk().to_lower_case(), "("}, ""));
 
             foreach (i, value : entry.values) {
                 String name = value.name;
                 if (value.type == command_name) name = "self";
                 if (value.type == result_type) name = "&response";
-                create_commands.append(dstring::new_join({name, i == entry.values.len() - 1 ? ")!;\n" : ", "}, "", allocator: &allocator));
+                create_commands.append(dstring::join(&allocator,{name, i == entry.values.len() - 1 ? ")!;\n" : ", "}, ""));
             }
 
             create_commands.append("   return response;\n}\n");
@@ -559,12 +560,12 @@ fn void main(String[] args) {
       
         // Add values
         foreach (i, value : entry.values) {
-            String type = type_values[value.type] ?? value.type.remove_vk();
-            String fn_values = dstring::new_join({type, value.value, i == entry.values.len() - 1 ? "" : ", "}, "", allocator: &allocator).str_view();
+            String type = type_values.get(value.type) ?? value.type.remove_vk();
+            String fn_values = dstring::join(&allocator,{type, value.value, i == entry.values.len() - 1 ? "" : ", "}, "").str_view();
 
             if (entry.extension) {
                 extension_definitions.append(fn_values);
-                if (no_result) extension_functions.append(dstring::new_join({type, value.value, " ", value.name, i == entry.values.len() - 1 ? ")" : ", "}, "", allocator: &allocator));
+                if (no_result) extension_functions.append(dstring::join(&allocator,{type, value.value, " ", value.name, i == entry.values.len() - 1 ? ")" : ", "}, ""));
             } 
             
             if (!entry.extension) base_commands.append(fn_values); 
@@ -572,12 +573,12 @@ fn void main(String[] args) {
 
         if (entry.extension) {
             if (no_result) {
-                extension_functions.append(dstring::new_join({" => extensions.", entry.name, "("}, ""));
-                foreach (i, value : entry.values) extension_functions.append(dstring::new_join({value.name, i == entry.values.len() - 1 ? ");\n" : ", "}, "", allocator: &allocator));   
+                extension_functions.append(dstring::join(&allocator,{" => extensions.", entry.name, "("}, ""));
+                foreach (i, value : entry.values) extension_functions.append(dstring::join(&allocator,{value.name, i == entry.values.len() - 1 ? ");\n" : ", "}, ""));   
             }
-            extension_definitions.append(dstring::new_join({");\n"}, "", allocator: &allocator));
+            extension_definitions.append(dstring::join(&allocator,{");\n"}, ""));
         } else {
-            base_commands.append(dstring::new_join({")", " @extern(\"", entry.name, "\"); \n"}, "", allocator: &allocator));
+            base_commands.append(dstring::join(&allocator,{")", " @extern(\"", entry.name, "\"); \n"}, ""));
         }
     }
 
@@ -600,21 +601,21 @@ fn void main(String[] args) {
     // Commands with error handling
     foreach (entry : commands) {
         if (!entry.enabled || entry.returnType != "VkResult") continue;
-        String return_type = type_values[entry.returnType] ?? entry.returnType.remove_vk();
+        String return_type = type_values.get(entry.returnType) ?? entry.returnType.remove_vk();
 
         DString text_body;
         text_body.append("fn void! ");
-        text_body.append(dstring::new_join({entry.name[2..].to_lower_case(), " ("}, "", allocator: &allocator));
+        text_body.append(dstring::join(&allocator,{entry.name[2..].to_lower_case(), " ("}, ""));
 
         defer text_body.free();
 
         // Add values
         foreach (i, value : entry.values) {
-            String type = type_values[value.type] ?? value.type;
-            text_body.append(dstring::new_join({type.remove_vk(), value.value, " ", value.name, i == entry.values.len() - 1 ? "" : ", "}, "", allocator: &allocator));
+            String type = type_values.get(value.type) ?? value.type;
+            text_body.append(dstring::join(&allocator,{type.remove_vk(), value.value, " ", value.name, i == entry.values.len() - 1 ? "" : ", "}, ""));
         }
 
-        text_body.append(dstring::new_join({")", " {\n"}, "", allocator: &allocator));
+        text_body.append(dstring::join(&allocator,{")", " {\n"}, ""));
 
         if (entry.extension) {
             text_body.append("  Result result = extensions.");
@@ -622,15 +623,15 @@ fn void main(String[] args) {
             text_body.append("  Result result = ");
         }
 
-        text_body.append(dstring::new_join({entry.name, "("}, "", allocator: &allocator));
+        text_body.append(dstring::join(&allocator,{entry.name, "("}, ""));
 
-        foreach (i, value : entry.values) text_body.append(dstring::new_join({value.name, i == entry.values.len() - 1 ? "" : ", "}, "", allocator: &allocator));
+        foreach (i, value : entry.values) text_body.append(dstring::join(&allocator,{value.name, i == entry.values.len() - 1 ? "" : ", "}, ""));
         text_body.append(");\n");
 
         if (entry.error_codes.len() > 0) {
             text_body.append("  switch(result) { \n");
             foreach (i, value : entry.error_codes) {
-                text_body.append(dstring::new_join({"       case ", value[3..], ": return VkErrors.", value[3..], "?;\n"}, "", allocator: &allocator));
+                text_body.append(dstring::join(&allocator,{"       case ", value[3..], ": return VkErrors.", value[3..], "?;\n"}, "" ));
             }
             text_body.append("  }\n");
         } else {
@@ -654,32 +655,32 @@ macro bool String[*].contains(self, String key) {
     return false;
 }
 
-fn String String.from_bit_pos(&self) {
+fn String String.from_bit_pos(&self,Allocator allocator = allocator::heap()) {
     char[32] buffer;
     String res = (String)io::bprintf(&buffer, "0x%08x", (ulong)1 << self.to_uint()!!)!!;
-    return res.copy();
+    return res.copy(allocator);
 }
 
-fn String String.to_lower_case(self) {
-    String new_value = self.copy();
+fn String String.to_lower_case(self,Allocator allocator = allocator::heap()) {
+    String new_value = self.copy(allocator);
     new_value[0] = new_value[0].to_lower();
     return new_value;
 }
 
-fn String String.capitalize(self) {
-    String new_value = self.copy();
+fn String String.capitalize(self,Allocator allocator = allocator::heap()) {
+    String new_value = self.copy(allocator);
     new_value[0] = new_value[0].to_upper();
     return new_value;
 }
 
-fn String String.remove_vk(self) {
+fn String String.remove_vk(self,Allocator allocator = allocator::heap()) {
     if (self[0..1] == "Vk" || self[0..1] == "vk") {
-         return self.copy()[2..];
+         return self.copy(allocator)[2..];
     }
     return self;
 }
 
-fn String String.from_ext_value(&self, String offset, bool negative_value = false) {
+fn String String.from_ext_value(&self, String offset, bool negative_value = false,Allocator allocator = allocator::heap()) {
     char[32] buffer;
     DString value;
     uint ext_int = self.to_uint()!! - 1;
@@ -692,7 +693,7 @@ fn String String.from_ext_value(&self, String offset, bool negative_value = fals
     value.append_repeat('0', 3 - offset.len);
     value.append_chars(offset);
 
-    String res = value.copy_str();
+    String res = value.copy_str(allocator);
     value.free();
     return res;
 }

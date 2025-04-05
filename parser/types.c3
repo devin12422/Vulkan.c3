@@ -75,9 +75,9 @@ fn VkEnum VkEnum.from_node(&self, xml::Node node) {
     self.bitwidth = node.attributes.get("bitwidth") ?? "";
 
     foreach (entry : node.children) {
-        String name = entry.attributes.get("name");
-        String value = entry.attributes.get("value");
-        String bitpos = entry.attributes.get("bitpos");
+        String? name = entry.attributes.get("name");
+        String? value = entry.attributes.get("value");
+        String? bitpos = entry.attributes.get("bitpos");
         VkValue result;
         if (try name) {
             if (try value) {
@@ -112,11 +112,11 @@ fn VkValue VkValue.from_node(&self, xml::Node node) {
     return *self;
 }
 
-fn VkStruct VkStruct.from_node(&self, xml::Node node) {
+fn VkStruct VkStruct.from_node(&self, xml::Node node,Allocator allocator = allocator::heap()) {
     self.name = node.attributes.get("name") ?? "-";
     
     foreach (member : node.children) {
-        String api = member.attributes.get("api");
+        String? api = member.attributes.get("api");
         if (try api && api == "vulkansc") continue;
 
         VkValue value;
@@ -143,8 +143,8 @@ fn VkStruct VkStruct.from_node(&self, xml::Node node) {
         }
 
         if (value.size != "" && value.size != "null-terminated" && value.size[0] != '[') {
-            DString size_value = dstring::new_join({"[", value.size[3..], "]"}, "");
-            value.size = size_value.copy_str();
+            DString size_value = dstring::join(allocator,{"[", value.size[3..], "]"}, "");
+            value.size = size_value.copy_str(allocator);
             size_value.free();
         }
 
@@ -155,17 +155,17 @@ fn VkStruct VkStruct.from_node(&self, xml::Node node) {
 
 
 fn VkCommand VkCommand.from_node(&self, xml::Node node) {
-    String success_codes = node.attributes.get("successcodes");
-    String error_codes = node.attributes.get("errorcodes");
+    String? success_codes = node.attributes.get("successcodes");
+    String? error_codes = node.attributes.get("errorcodes");
 
     if (try error_codes) {
-        String[] error_codes_list = error_codes.split(",");
+        String[] error_codes_list = error_codes.split(allocator::heap(),",");
         foreach (code : error_codes_list) self.error_codes.push(code);
         free(error_codes_list);
     }
     
     foreach (member : node.children) {
-        String api = member.attributes.get("api");
+        String? api = member.attributes.get("api");
         bool is_vulkansc = @ok(api) && api!! == "vulkansc";
         VkValue value;
         value.optional = member.attributes.has_key("optional");
@@ -191,7 +191,7 @@ fn VkCommand VkCommand.from_func_ptr(&self, xml::Node node) {
     if (node.value.len > 5) self.returnType = node.value;
     //node.value[7..(node.value.len + 7 - 10)]
     foreach (member : node.children) {
-        String api = member.attributes.get("api");
+        String? api = member.attributes.get("api");
         bool is_vulkansc = @ok(api) && api!! == "vulkansc";
         VkValue value;
 

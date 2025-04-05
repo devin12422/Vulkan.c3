@@ -19,11 +19,6 @@
 			"type": "prepare",
 			"exec": ["cd ./vk && zip ../vulkan.c3l ./*.c3 ./manifest.json"]
 		},
-		"cube": {
-			"type": "executable",
-			"sources": ["./examples/cube/main.c3", "./examples/camera.c3", "./vk/*"],
-			"dependencies": ["c3w"]
-		},
 		"build": {
 			"type": "executable",
 			"dependencies": ["xml"],
