@@ -9,7 +9,7 @@ import xml;
 
 const MAX_VERSION = 1.4;
 
-def TypeMap = HashMap(<String, String>);
+alias TypeMap = HashMap{String, String};
 
 const String[*] ACTIVE_EXTENSIONS = {
   "VK_KHR_portability_enumeration",
@@ -44,7 +44,7 @@ const String[*] ACTIVE_EXTENSIONS = {
 
 fn void main(String[] args) {
 
-    TypeMap type_values = *TypeMap{}.new_init_with_key_values(
+    TypeMap type_values = TypeMap.new_init_with_key_values(
         "uint16_t", "uint",
         "int16_t", "short",
         "uint32_t", "uint",
@@ -97,15 +97,15 @@ fn void main(String[] args) {
 
     root_node.find(fn (node) => (node.attributes.has_key("category") || node.attributes.has_key("type")), &types_nodes);
 
-    root_node.find(fn (node) => {|
+    root_node.find(fn bool(node) {
         if (node.name == "command") {
             if (node.attributes.has_key("api") && node.attributes["api"]!! == "vulkansc") {
                  return false;
             };
             return true;
-        }
+        };
         return false;
-    |}, &command_nodes);
+    }, &command_nodes);
 
     StructList structs;
     CommandList commands;
@@ -129,43 +129,43 @@ fn void main(String[] args) {
 
     // Create api contants
     foreach (node: root_node.children) {
-        String! name = node.attributes.get("name");
-        String! type = node.attributes.get("type");
-        String! comment = node.attributes.get("comment");
+        String name = node.attributes.get("name");
+        String type = node.attributes.get("type");
+        String comment = node.attributes.get("comment");
         
         if (try name && name == "API Constants") {
             foreach (child: node.children) {
-                String! child_name = child.attributes.get("name");
-                String! alias = child.attributes.get("alias");
-                String! value = child.attributes.get("value");
+                String child_name = child.attributes.get("name");
+                String alias_attr = child.attributes.get("alias");
+                String value = child.attributes.get("value");
 
-                if (try alias && try child_name) continue;
+                if (try alias_attr && try child_name) continue;
 
                 if (try child_name) {
-                    constants.push(VkValue {
+                    constants.push((VkValue){
                         .type = type ?? "",
                         .value = value ?? "",
                         .name = child_name
-                    });
+                });
                 }
             }
         }
     }
 
     foreach (usz i, node : types_nodes) {
-        String! comment = node.attributes.get("comment");
-        String! extends = node.attributes.get("structextends");
-        String! name = node.attributes.get("name");
-        String! alias = node.attributes.get("alias");
+        String comment = node.attributes.get("comment");
+        String extends = node.attributes.get("structextends");
+        String name = node.attributes.get("name");
+        String alias_attr = node.attributes.get("alias");
         String category = node.attributes.get("category") ?? node.attributes.get("type")!!;
 
-        if (try alias && try name) {
+        if (try alias_attr && try name) {
          
             switch (category) {
                  case "struct": {
-                    VkStruct value = VkStruct{}.from_node(types_nodes[i - 1]);
+                    VkStruct value = (VkStruct){}.from_node(types_nodes[i - 1]);
                     value.name = name;
-                    value.alias = alias;
+                    value.alias_attr = alias_attr;
                     if (value.values.len() > 0) structs.push(value);                   
                 }
             }
@@ -174,26 +174,26 @@ fn void main(String[] args) {
         if (node.children.len() > 0) {
             switch (category) {
                 case "enum": {
-                    if (try name) enums.push(VkEnum{}.from_node(node));
+                    if (try name) enums.push((VkEnum){}.from_node(node));
                 }
                 case "struct": {
-                    structs.push(VkStruct{}.from_node(node));
+                    structs.push((VkStruct){}.from_node(node));
                 }
                 case "union": {
-                    unions.push(VkStruct{}.from_node(node));
+                    unions.push((VkStruct){}.from_node(node));
                 }
                 case "handle": {
-                    handles.push(VkValue{}.from_node(node));
+                    handles.push((VkValue){}.from_node(node));
                 }
                 case "bitmask": {
                     if (node.name == "type") {
-                            VkValue value = VkValue{}.from_node(node);
+                            VkValue value = (VkValue){}.from_node(node);
                             if (!basetypes.contains_value(value.name)) basetypes.push(value);
                     };
-                if (node.name == "enums") enums.push(VkEnum{}.from_node(node));
+                if (node.name == "enums") enums.push((VkEnum){}.from_node(node));
                 }
                 case "basetype": {
-                    basetypes.push(VkValue{}.from_node(node));
+                    basetypes.push((VkValue){}.from_node(node));
                 }
             }
         }
@@ -201,16 +201,16 @@ fn void main(String[] args) {
 
     // Parse commands
     foreach (usz i, node : command_nodes) {
-        String! alias = node.attributes.get("alias");
-        String! name = node.attributes.get("name");
+        String alias_attr = node.attributes.get("alias");
+        String name = node.attributes.get("name");
 
         if (node.children.len() > 0) {
-            VkCommand command = VkCommand{}.from_node(node);
+            VkCommand command = (VkCommand){}.from_node(node);
             commands.push(command);
         }
         
-        if (try alias && try name) {
-            VkCommand command = VkCommand{}.from_node(command_nodes[i - 1]);
+        if (try alias_attr && try name) {
+            VkCommand command = (VkCommand){}.from_node(command_nodes[i - 1]);
             command.name = name;
             commands.push(command);
         }
@@ -218,9 +218,9 @@ fn void main(String[] args) {
 
     // Enable correct features before writing C3 code
     foreach (feature : feature_nodes) {
-        String! number = feature.attributes.get("number");
-        String! extension_name = feature.attributes.get("name");
-        String! feature_api = feature.attributes.get("api");
+        String number = feature.attributes.get("number");
+        String extension_name = feature.attributes.get("name");
+        String feature_api = feature.attributes.get("api");
 
         if (@ok(feature_api) && feature_api!! == "vulkansc") continue;
 
@@ -229,12 +229,12 @@ fn void main(String[] args) {
         // Get only up-to required vulkan version
         if (((@ok(number) && number.to_double()!! <= MAX_VERSION) || is_extension)) {
             foreach (require: feature.children) {
-                String! depends = require.attributes.get("depends");
+                String depends = require.attributes.get("depends");
 
                 foreach (entry : require.children) {
-                    String! name = entry.attributes.get("name");
-                    String! extends = entry.attributes.get("extends");
-                    String! value = entry.attributes.get("value");
+                    String name = entry.attributes.get("name");
+                    String extends = entry.attributes.get("extends");
+                    String value = entry.attributes.get("value");
 
                     if (catch err = name) continue;
 
@@ -268,28 +268,30 @@ fn void main(String[] args) {
                         }
                         case "enum": {
                             if (try extends) {
-                                String! extnumber = entry.attributes.get("extnumber") ?? number;
-                                String! offset = entry.attributes.get("offset");
-                                String! bitpos = entry.attributes.get("bitpos");
-                                String! dir = entry.attributes.get("dir");
-                                String! alias = entry.attributes.get("alias");
+                                String extnumber = entry.attributes.get("extnumber") ?? number;
+                                String offset = entry.attributes.get("offset");
+                                String bitpos = entry.attributes.get("bitpos");
+                                String dir = entry.attributes.get("dir");
+                                String alias_attr = entry.attributes.get("alias");
 
                                 // Extends previous enum
-                                VkEnum* enum_parent = {|
-                                    foreach (&item: enums) {
-                                        if (item.name == extends) return item;
-                                    }
-                                    return null;
-                                |};
-
-                                if (!enum_parent) {
-                                    enums.push(VkEnum { .base.name = extends });
+                                VkEnum enum_parent;
+                                VkEnum? o_enum_parent;
+                                foreach (&item : enums) {
+                                    if (item.name == extends){
+                                        enum_parent = item;
+                                        o_enum_parent = item;
+                                        break;
+                                    };
+                                };
+                                if (catch o_enum_parent) {
+                                    enums.push((VkEnum) { .base.name = extends });
                                     enum_parent = &enums[enums.len() - 1];
                                 };
 
-                                if (try alias) {
+                                if (try alias_attr) {
                                     foreach (node: enum_parent.values) {
-                                        if (node.name == alias) {
+                                        if (node.name == alias_attr) {
                                             if (!enum_parent.contains_value(name)) {
                                                 VkValue alias_node = node;
                                                 alias_node.name = name;
@@ -307,7 +309,7 @@ fn void main(String[] args) {
 
                                 if (!enum_parent.contains_value(name)) {
                                     enum_parent.values.push(
-                                        VkValue {
+                                        (VkValue) {
                                             .name = name,
                                             .value = vk_value
                                         }
@@ -519,11 +521,16 @@ fn void main(String[] args) {
         }
 
         if (create_command && entry.name != "vkCreateRenderPass2KHR") {
-            String command_name = {|
-                foreach (value : entry.values) if (value.type.contains("CreateInfo")) return value.type;
-                return "";
-            |};
-     
+            String command_name;
+            String? o_command_name;
+            
+            foreach (value : entry.values) {
+                if (value.type.contains("CreateInfo")) {
+                    o_command_name =  value.type; 
+                    break;
+                };
+            };
+            command_name = o_command_name ?? "";
             String result_type = entry.values[entry.values.len() - 1].type;
     
             create_commands.append(dstring::new_join({"fn ", result_type.remove_vk(), "! ", command_name.remove_vk(), ".build(&self, "}, "", allocator: &allocator));
